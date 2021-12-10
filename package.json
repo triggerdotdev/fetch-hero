@@ -1,0 +1,54 @@
+{
+  "name": "node-fetch-hero",
+  "version": "0.0.1",
+  "description": "Give node-fetch superpowers",
+  "exports": "./lib/index.js",
+  "types": "lib/index.d.ts",
+  "type": "module",
+  "files": [
+    "/lib"
+  ],
+  "scripts": {
+    "test": "jest --runInBand",
+    "build": "tsc"
+  },
+  "engines": {
+    "node": "16"
+  },
+  "keywords": [
+    "http",
+    "fetch",
+    "node",
+    "api",
+    "requests",
+    "caching"
+  ],
+  "author": "Eric Allam",
+  "license": "ISC",
+  "devDependencies": {
+    "@keyv/sqlite": "^2.0.3",
+    "@tsconfig/node16": "^1.0.2",
+    "@types/body": "^5.1.1",
+    "@types/http-cache-semantics": "^4.0.1",
+    "@types/jest": "^27.0.2",
+    "@types/keyv": "^3.1.3",
+    "@types/node": "^16.11.7",
+    "@types/node-fetch": "^2.5.12",
+    "body": "^5.1.0",
+    "jest": "^27.3.1",
+    "ts-jest": "^27.0.7",
+    "ts-node": "^10.4.0",
+    "typescript": "^4.4.4",
+    "url-router": "^13.0.0"
+  },
+  "dependencies": {
+    "http-cache-semantics": "^4.1.0",
+    "keyv": "^4.0.4",
+    "node-fetch": "^2.6.6",
+    "ts-custom-error": "^3.2.0"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node"
+  }
+}
