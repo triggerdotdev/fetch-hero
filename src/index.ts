@@ -5,7 +5,7 @@ import {
   RequestInit,
   Headers,
   Response,
-  HeaderInit,
+  HeadersInit,
   Request,
   BodyInit,
 } from "node-fetch";
@@ -49,7 +49,10 @@ export { Headers };
 export { Response };
 export { RequestInfo };
 
-type FetchType = (input: RequestInfo, init?: RequestInit) => Promise<Response>;
+export type FetchType = (
+  input: RequestInfo,
+  init?: RequestInit
+) => Promise<Response>;
 
 type CachedResponse = {
   url?: string;
@@ -92,8 +95,8 @@ export default function fetchHero(
     init?: RequestInit
   ): Promise<Response> {
     if (cache) {
-      const newRequest = getCacheRequestFromInput(input, init);
-      const cacheKey = `${newRequest.method}:${newRequest.url}`;
+      const newCachePolicyRequest = buildCachePolicyRequest(input, init);
+      const cacheKey = `${newCachePolicyRequest.method}:${newCachePolicyRequest.url}`;
 
       const existingCacheEntry = await cache.get(cacheKey);
 
@@ -102,7 +105,7 @@ export default function fetchHero(
         const cachePolicy = CachePolicy.fromObject(existingCacheEntry.policy);
 
         // If the cache entry is still valid, we can return it
-        if (cachePolicy.satisfiesWithoutRevalidation(newRequest)) {
+        if (cachePolicy.satisfiesWithoutRevalidation(newCachePolicyRequest)) {
           const response = rehydrateFetchResponseFromCacheEntry(
             existingCacheEntry.response,
             cachePolicy.responseHeaders()
@@ -145,11 +148,12 @@ export default function fetchHero(
         // And then potentially cache it if it is storable
         const response = await fetch(input, init);
 
-        const cacheResponse = getCacheResponseFromFetchResponse(response);
+        const cachePolicyResponse =
+          buildCachePolicyResponseFromFetchResponse(response);
 
         const cachePolicy = new CachePolicy(
-          newRequest,
-          cacheResponse,
+          newCachePolicyRequest,
+          cachePolicyResponse,
           options?.httpCache?.options
         );
 
@@ -184,7 +188,7 @@ async function revalidateRequest(
   response: CachedResponse;
   modified: boolean;
 }> {
-  const newRequest = getCacheRequestFromInput(info, init);
+  const newRequest = buildCachePolicyRequest(info, init);
 
   newRequest.headers = cachePolicy.revalidationHeaders(newRequest);
 
@@ -195,14 +199,20 @@ async function revalidateRequest(
     body: getBodyFromInput(info, init),
   });
 
-  const cachedRevalidationResponse =
-    getCacheResponseFromFetchResponse(revalidationResponse);
+  const revalidationCachePolicyResponse =
+    buildCachePolicyResponseFromFetchResponse(revalidationResponse);
 
   const cacheResponse = await buildCachedResponse(revalidationResponse);
 
+  const revalidationResult = cachePolicy.revalidatedPolicy(
+    newRequest,
+    revalidationCachePolicyResponse
+  );
+
   // Create updated policy and combined response from the old and new data
   return {
-    ...cachePolicy.revalidatedPolicy(newRequest, cachedRevalidationResponse),
+    policy: revalidationResult.policy,
+    modified: revalidationResult.modified,
     response: cacheResponse,
   };
 }
@@ -240,7 +250,7 @@ async function buildCachedResponse(
   };
 }
 
-function getCacheResponseFromFetchResponse(
+function buildCachePolicyResponseFromFetchResponse(
   response: Response
 ): CachePolicy.Response {
   return {
@@ -249,7 +259,7 @@ function getCacheResponseFromFetchResponse(
   };
 }
 
-function getCacheRequestFromInput(
+function buildCachePolicyRequest(
   input: RequestInfo,
   init?: RequestInit
 ): CachePolicy.Request {
@@ -267,7 +277,9 @@ function getCacheRequestFromInput(
 function unnormalizeHeaders(headers: CachePolicy.Headers): Headers {
   const result = new Headers();
 
-  Object.entries(headers).forEach(([headerName, headerValue]) => {
+  Object.keys(headers).forEach((headerName) => {
+    const headerValue = headers[headerName];
+
     if (Array.isArray(headerValue)) {
       headerValue.forEach((value) => result.append(headerName, value));
     } else if (headerValue) {
@@ -278,17 +290,23 @@ function unnormalizeHeaders(headers: CachePolicy.Headers): Headers {
   return result;
 }
 
-function normalizeHeaders(headers?: HeaderInit): CachePolicy.Headers {
+function isFetchHeaders(headers: HeadersInit): headers is Headers {
+  return typeof (headers as Headers).raw === "function";
+}
+
+function normalizeHeaders(headers?: HeadersInit): CachePolicy.Headers {
   if (!headers) {
     return {};
   }
 
-  if (headers instanceof Headers) {
-    return Object.keys(headers.raw()).reduce((result, headerName) => {
-      const headerValue = headers.raw()[headerName];
+  if (isFetchHeaders(headers)) {
+    const results: Record<string, string> = {};
 
-      return { ...result, [headerName]: headerValue.join(",") };
-    }, {} as CachePolicy.Headers);
+    for (const [name, value] of headers) {
+      results[name] = value;
+    }
+
+    return results;
   }
 
   if (Array.isArray(headers)) {
