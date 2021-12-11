@@ -10,8 +10,6 @@ import {
   BodyInit,
 } from "node-fetch";
 
-import normalizeUrl from "./normalizeUrl";
-
 import { URL } from "url";
 
 export interface CacheStoreOptions {
@@ -49,7 +47,7 @@ export { Headers };
 export { Response };
 export { RequestInfo };
 
-export type FetchType = (
+export type FetchFunction = (
   input: RequestInfo,
   init?: RequestInit
 ) => Promise<Response>;
@@ -69,9 +67,9 @@ type CacheEntry = {
 };
 
 export default function fetchHero(
-  fetch: FetchType,
+  fetch: FetchFunction,
   options?: FetchHeroOptions
-): FetchType {
+): FetchFunction {
   let cache: Keyv<CacheEntry> | undefined;
 
   if (options && options.httpCache && options.httpCache.enabled) {
@@ -179,7 +177,7 @@ export default function fetchHero(
 }
 
 async function revalidateRequest(
-  fetch: FetchType,
+  fetch: FetchFunction,
   cachePolicy: CachePolicy,
   info: RequestInfo,
   init?: RequestInit
@@ -265,11 +263,7 @@ function buildCachePolicyRequest(
 ): CachePolicy.Request {
   return {
     headers: normalizeHeaders(init?.headers),
-    url: normalizeUrl(getUrlFromInput(input).href, {
-      stripWWW: false,
-      removeTrailingSlash: true,
-      stripProtocol: true,
-    }),
+    url: getUrlFromInput(input).href,
     method: getMethodFromInput(input, init),
   };
 }

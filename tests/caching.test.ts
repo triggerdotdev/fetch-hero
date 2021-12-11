@@ -1,183 +1,159 @@
-import * as http from "http";
-import fetchHero from "../src";
-import nodeFetch from "node-fetch";
-import { APIServer, createApiServer } from "./helpers/createAPIServer";
+import fetchHero, { FetchFunction } from "../src";
+
+import fetchMockJest from "fetch-mock-jest";
+
+import { unlinkSync } from "fs";
+
+const nodeFetch = fetchMockJest.sandbox();
 
 describe("caching requests", () => {
-  let apiServer: APIServer;
-
-  const posts = [
-    {
-      userId: 1,
-      id: 1,
-      title: "This is a post by eric",
-      body: "quia et suscipit\nsuscipit recusandae consequuntur expedita et cum\nreprehenderit molestiae ut ut quas totam\nnostrum rerum est autem sunt rem eveniet architecto",
-    },
-    {
-      userId: 2,
-      id: 2,
-      title: "This is a post by matt",
-      body: "quia et suscipit\nsuscipit recusandae consequuntur expedita et cum\nreprehenderit molestiae ut ut quas totam\nnostrum rerum est autem sunt rem eveniet architecto",
-    },
-  ];
-
-  const users = [
-    {
-      id: 1,
-      name: "Eric",
-      email: "eric@foo.bar",
-      avatar: {
-        url: "http://gravatar.img/eric.png",
-      },
-    },
-    {
-      id: 2,
-      name: "Matt",
-      email: "matt@foo.bar",
-      avatar: {
-        url: "http://gravatar.img/matt.png",
-      },
-    },
-  ];
-
-  beforeAll(async () => {
-    const routes = {
-      "/posts": posts,
-      "/posts/:id": (params: any) => {
-        return posts.find((p) => p.id === parseInt(params.id));
-      },
-      "/users/:id": (params: any, res: http.ServerResponse) => {
-        res.setHeader("cache-control", "private, s-maxage=60");
-        res.setHeader(
-          "last-modified",
-          new Date(Date.now() - 20000).toUTCString()
-        );
-
-        return users.find((u) => u.id === parseInt(params.id));
-      },
-    };
-
-    apiServer = await createApiServer({
-      routes,
+  beforeAll(() => {
+    nodeFetch.mock(`path:/public/cacheable`, {
+      body: "public cacheable",
+      status: 200,
       headers: {
-        "cache-control": "public, max-age=60",
+        "Content-Type": "text",
+        "Cache-Control": "public, max-age=60",
+        "Last-Modified": new Date(Date.now() - 20000).toUTCString(),
+      },
+    });
+
+    nodeFetch.mock(`path:/private/cacheable`, {
+      body: "private cacheable",
+      status: 200,
+      headers: {
+        "Content-Type": "text",
+        "Cache-Control": "private, s-maxage=60",
+        "Last-Modified": new Date(Date.now() - 20000).toUTCString(),
       },
     });
   });
 
-  afterAll(async () => {
-    await apiServer.close();
+  afterAll(() => {
+    nodeFetch.mockReset();
   });
 
   afterEach(() => {
-    apiServer.requests = [];
+    nodeFetch.mockClear();
   });
 
   test("Should not cache if caching is disabled", async () => {
-    const fetch = fetchHero(nodeFetch);
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction);
 
-    const response1 = await fetch(`http://localhost:${apiServer.port}/posts/1`);
+    const response1 = await fetch(`http://mock.foo/public/cacheable`);
+    expect(response1.status).toBe(200);
+    expect(await response1.text()).toBe("public cacheable");
 
-    const response2 = await fetch(`http://localhost:${apiServer.port}/posts/1`);
+    const response2 = await fetch(`http://mock.foo/public/cacheable`);
+    expect(response2.status).toBe(200);
+    expect(await response2.text()).toBe("public cacheable");
 
-    expect(apiServer.requests.length).toBe(2);
-
-    const body1 = await response1.json();
-    expect(body1).toStrictEqual(posts[0]);
-
-    const body2 = await response2.json();
-    expect(body2).toStrictEqual(posts[0]);
+    expect(nodeFetch).toHaveFetchedTimes(2, `path:/public/cacheable`);
   });
 
   test("Should respond with a cached response if caching is enabled, cache-control=public, max-age=60", async () => {
-    const fetch = fetchHero(nodeFetch, { httpCache: { enabled: true } });
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: { enabled: true },
+    });
 
-    const response1 = await fetch(`http://localhost:${apiServer.port}/posts/1`);
+    const response1 = await fetch(`http://mock.foo/public/cacheable`);
+    expect(response1.status).toBe(200);
+    expect(await response1.text()).toBe("public cacheable");
 
-    const response2 = await fetch(`http://localhost:${apiServer.port}/posts/1`);
+    const response2 = await fetch(`http://mock.foo/public/cacheable`);
+    expect(response2.status).toBe(200);
+    expect(await response2.text()).toBe("public cacheable");
 
-    expect(apiServer.requests.length).toBe(1);
-
-    const body1 = await response1.json();
-    expect(body1).toStrictEqual(posts[0]);
-
-    const body2 = await response2.json();
-    expect(body2).toStrictEqual(posts[0]);
+    expect(nodeFetch).toHaveFetchedTimes(1, `path:/public/cacheable`);
   });
 
   test("Should allow configuring the cache store with a Map", async () => {
     const customMap = new Map<any, any>();
 
-    const fetch = fetchHero(nodeFetch, {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
       httpCache: { enabled: true, store: customMap },
     });
 
-    const response1 = await fetch(`http://localhost:${apiServer.port}/posts/1`);
+    const response1 = await fetch(`http://mock.foo/public/cacheable`);
+    expect(response1.status).toBe(200);
+    expect(await response1.text()).toBe("public cacheable");
 
-    const response2 = await fetch(`http://localhost:${apiServer.port}/posts/1`);
+    const response2 = await fetch(`http://mock.foo/public/cacheable`);
+    expect(response2.status).toBe(200);
+    expect(await response2.text()).toBe("public cacheable");
 
-    expect(apiServer.requests.length).toBe(1);
-
-    const body1 = await response1.json();
-    expect(body1).toStrictEqual(posts[0]);
-
-    const body2 = await response2.json();
-    expect(body2).toStrictEqual(posts[0]);
+    expect(nodeFetch).toHaveFetchedTimes(1, `path:/public/cacheable`);
 
     expect(customMap.size).toBe(1);
   });
 
+  test("Can pass in a custom namespace", async () => {
+    const customMap = new Map<any, any>();
+
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: {
+        enabled: true,
+        store: customMap,
+        namespace: "caching.test.ts",
+      },
+    });
+
+    await fetch(`http://mock.foo/public/cacheable`);
+
+    expect(
+      customMap.get(
+        "fetch-hero.caching.test.ts:GET:http://mock.foo/public/cacheable"
+      )
+    ).toBeDefined();
+  });
+
   test("Should allow configuring the cache store with a connection string", async () => {
-    const fetch = fetchHero(nodeFetch, {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
       httpCache: { enabled: true, store: "sqlite://tests/test.sqlite" },
     });
 
-    const response1 = await fetch(`http://localhost:${apiServer.port}/posts/1`);
+    const response1 = await fetch(`http://mock.foo/public/cacheable`);
+    expect(response1.status).toBe(200);
+    expect(await response1.text()).toBe("public cacheable");
 
-    const response2 = await fetch(`http://localhost:${apiServer.port}/posts/1`);
+    const response2 = await fetch(`http://mock.foo/public/cacheable`);
+    expect(response2.status).toBe(200);
+    expect(await response2.text()).toBe("public cacheable");
 
-    expect(apiServer.requests.length).toBe(1);
+    expect(nodeFetch).toHaveFetchedTimes(1, `path:/public/cacheable`);
 
-    const body1 = await response1.json();
-    expect(body1).toStrictEqual(posts[0]);
-
-    const body2 = await response2.json();
-    expect(body2).toStrictEqual(posts[0]);
+    unlinkSync("tests/test.sqlite");
   });
 
   test("Should NOT respond with a cached response if shared caching is enabled, cache-control=private", async () => {
-    const fetch = fetchHero(nodeFetch, {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
       httpCache: { enabled: true, options: { shared: true } },
     });
 
-    const response1 = await fetch(`http://localhost:${apiServer.port}/users/1`);
+    const response1 = await fetch(`http://mock.foo/private/cacheable`);
+    expect(response1.status).toBe(200);
+    expect(await response1.text()).toBe("private cacheable");
 
-    const response2 = await fetch(`http://localhost:${apiServer.port}/users/1`);
+    const response2 = await fetch(`http://mock.foo/private/cacheable`);
+    expect(response2.status).toBe(200);
+    expect(await response2.text()).toBe("private cacheable");
 
-    expect(apiServer.requests.length).toBe(2);
-
-    const body1 = await response1.json();
-    expect(body1).toStrictEqual(users[0]);
-
-    const body2 = await response2.json();
-    expect(body2).toStrictEqual(users[0]);
+    expect(nodeFetch).toHaveFetchedTimes(2, `path:/private/cacheable`);
   });
 
   test("Should respond with a cached response if private caching is enabled, cache-control=private", async () => {
-    const fetch = fetchHero(nodeFetch, {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
       httpCache: { enabled: true, options: { shared: false } },
     });
 
-    const response1 = await fetch(`http://localhost:${apiServer.port}/users/1`);
+    const response1 = await fetch(`http://mock.foo/private/cacheable`);
+    expect(response1.status).toBe(200);
+    expect(await response1.text()).toBe("private cacheable");
 
-    const response2 = await fetch(`http://localhost:${apiServer.port}/users/1`);
+    const response2 = await fetch(`http://mock.foo/private/cacheable`);
+    expect(response2.status).toBe(200);
+    expect(await response2.text()).toBe("private cacheable");
 
-    expect(apiServer.requests.length).toBe(1);
-
-    const body1 = await response1.json();
-    expect(body1).toStrictEqual(users[0]);
-
-    const body2 = await response2.json();
-    expect(body2).toStrictEqual(users[0]);
+    expect(nodeFetch).toHaveFetchedTimes(1, `path:/private/cacheable`);
   });
 });

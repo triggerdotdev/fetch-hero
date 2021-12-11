@@ -1,5 +1,10 @@
 # Fetch Hero
 
+![Coverage branches](./badges/badge-branches.svg)
+![Coverage functions](./badges/badge-functions.svg)
+![Coverage lines](./badges/badge-lines.svg)
+![Coverage statements](./badges/badge-statements.svg)
+
 Adds the following features to `node-fetch`:
 
 - Enables RFC 7234 and RFC 5861 HTTP caching
