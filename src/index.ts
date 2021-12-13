@@ -44,7 +44,6 @@ export type FetchHeroOptions = {
 };
 
 export { Headers };
-export { Response };
 export { RequestInfo };
 
 export type FetchFunction = (
@@ -262,9 +261,9 @@ function buildCachePolicyRequest(
   init?: RequestInit
 ): CachePolicy.Request {
   return {
-    headers: normalizeHeaders(init?.headers),
+    headers: normalizeHeaders(getHeadersFromInput(input, init)),
     url: getUrlFromInput(input).href,
-    method: getMethodFromInput(input, init),
+    method: getMethodFromInput(input, init).toUpperCase(),
   };
 }
 
@@ -340,16 +339,27 @@ function getBodyFromInput(
   }
 }
 
+function getHeadersFromInput(
+  input: RequestInfo,
+  init?: RequestInit
+): HeadersInit | undefined {
+  if (init?.headers) {
+    return init.headers;
+  }
+
+  if (input instanceof Request) {
+    return input.headers;
+  }
+}
+
 function getMethodFromInput(input: RequestInfo, init?: RequestInit): string {
   if (typeof input === "string") {
     return init?.method ?? "GET";
   } else if ("method" in input) {
     return input.method;
-  } else if (init && "method" in init) {
-    return init.method ?? "GET";
-  } else {
-    return "GET";
   }
+
+  return "GET";
 }
 
 function getUrlFromInput(input: RequestInfo): URL {

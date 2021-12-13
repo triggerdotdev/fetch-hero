@@ -1,11 +1,12 @@
-import fetchHero, { FetchFunction } from "../src";
+import fetchHero, { FetchFunction, Headers } from "../src";
 
-import { Headers } from "node-fetch";
+import { Request } from "node-fetch";
 
 import { MockRequest } from "fetch-mock";
 import fetchMockJest from "fetch-mock-jest";
 
 import { unlinkSync } from "fs";
+import { URL } from "url";
 
 const nodeFetch = fetchMockJest.sandbox();
 
@@ -174,6 +175,43 @@ describe("caching requests", () => {
         "Last-Modified": new Date(Date.now() - 20000).toUTCString(),
       },
     });
+
+    nodeFetch.mock(
+      {
+        name: "public json api",
+        url: "path:/public/json-api",
+        functionMatcher: (url: string, opts: MockRequest): boolean => {
+          let accepts = "text/plain";
+
+          if (Array.isArray(opts.headers)) {
+            const acceptHeader = opts.headers.find(
+              (header: string[]) => header[0] === "accept"
+            );
+
+            accepts = acceptHeader ? acceptHeader[1] : "text/plain";
+          } else if (opts.headers instanceof Headers) {
+            accepts = opts.headers.get("accept") || "text/plain";
+          } else {
+            accepts = opts.headers["accept"] || "text/plain";
+          }
+
+          return (
+            url.includes("public/json-api") &&
+            accepts.includes("application/json")
+          );
+        },
+      },
+      {
+        body: JSON.stringify({ foo: "bar" }),
+        status: 200,
+        headers: {
+          "Content-Length": JSON.stringify({ foo: "bar" }).length,
+          "Content-Type": "application/json",
+          "Cache-Control": "public, max-age=60",
+          "Last-Modified": new Date(Date.now() - 20000).toUTCString(),
+        },
+      }
+    );
   });
 
   afterAll(() => {
@@ -227,6 +265,60 @@ describe("caching requests", () => {
     expect(await response1.text()).toBe("public cacheable");
 
     const response2 = await fetch(`http://mock.foo/public/cacheable`);
+    expect(response2.status).toBe(200);
+    expect(await response2.text()).toBe("public cacheable");
+
+    expect(nodeFetch).toHaveFetchedTimes(1, `path:/public/cacheable`);
+  });
+
+  test("Should work with passing a Request to the fetch function", async () => {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: { enabled: true },
+    });
+
+    const request = new Request("http://mock.foo/public/cacheable");
+
+    const response1 = await fetch(request);
+    expect(response1.status).toBe(200);
+    expect(await response1.text()).toBe("public cacheable");
+
+    const response2 = await fetch(request);
+    expect(response2.status).toBe(200);
+    expect(await response2.text()).toBe("public cacheable");
+
+    expect(nodeFetch).toHaveFetchedTimes(1, `path:/public/cacheable`);
+  });
+
+  test("Should get the method from the RequestInit argument passed to the fetch function", async () => {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: { enabled: true },
+    });
+
+    const response1 = await fetch("http://mock.foo/public/cacheable", {
+      method: "get",
+    });
+    expect(response1.status).toBe(200);
+    expect(await response1.text()).toBe("public cacheable");
+
+    const response2 = await fetch("http://mock.foo/public/cacheable", {
+      method: "GET",
+    });
+    expect(response2.status).toBe(200);
+    expect(await response2.text()).toBe("public cacheable");
+
+    expect(nodeFetch).toHaveFetchedTimes(1, `path:/public/cacheable`);
+  });
+
+  test("Should get the url from the URL argument passed to the fetch function", async () => {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: { enabled: true },
+    });
+
+    const response1 = await fetch(new URL("http://mock.foo/public/cacheable"));
+    expect(response1.status).toBe(200);
+    expect(await response1.text()).toBe("public cacheable");
+
+    const response2 = await fetch(new URL("http://mock.foo/public/cacheable"));
     expect(response2.status).toBe(200);
     expect(await response2.text()).toBe("public cacheable");
 
@@ -462,5 +554,101 @@ describe("caching requests", () => {
     expect(await response2.text()).toBe("private cacheable");
 
     expect(nodeFetch).toHaveFetchedTimes(1, `path:/private/cacheable`);
+  });
+
+  test("Should pass through headers record to the server", async () => {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: { enabled: true },
+    });
+
+    const response1 = await fetch(`http://mock.foo/public/json-api`, {
+      headers: { accept: "application/json" },
+    });
+
+    expect(response1.status).toBe(200);
+    expect(await response1.json()).toStrictEqual({ foo: "bar" });
+
+    const response2 = await fetch(`http://mock.foo/public/json-api`, {
+      headers: { accept: "application/json" },
+    });
+
+    expect(response2.status).toBe(200);
+    expect(await response2.json()).toStrictEqual({ foo: "bar" });
+
+    expect(nodeFetch).toHaveFetchedTimes(1, `path:/public/json-api`);
+  });
+
+  test("Should pass through headers from the Request to the origin server", async () => {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: { enabled: true },
+    });
+
+    const request = new Request(`http://mock.foo/public/json-api`, {
+      headers: { accept: "application/json" },
+    });
+
+    const response1 = await fetch(request);
+
+    expect(response1.status).toBe(200);
+    expect(await response1.json()).toStrictEqual({ foo: "bar" });
+
+    const response2 = await fetch(request);
+
+    expect(response2.status).toBe(200);
+    expect(await response2.json()).toStrictEqual({ foo: "bar" });
+
+    expect(nodeFetch).toHaveFetchedTimes(1, `path:/public/json-api`);
+  });
+
+  test("Should pass through headers array", async () => {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: { enabled: true },
+    });
+
+    const response1 = await fetch("http://mock.foo/public/json-api", {
+      headers: [["accept", "application/json"]],
+    });
+
+    expect(response1.status).toBe(200);
+    expect(await response1.json()).toStrictEqual({ foo: "bar" });
+
+    const response2 = await fetch("http://mock.foo/public/json-api", {
+      headers: [["accept", "application/json"]],
+    });
+
+    expect(response2.status).toBe(200);
+    expect(await response2.json()).toStrictEqual({ foo: "bar" });
+
+    expect(nodeFetch).toHaveFetchedTimes(1, `path:/public/json-api`);
+  });
+
+  test("Should work with multiple values for a header", async () => {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: { enabled: true },
+    });
+
+    const response1 = await fetch("http://mock.foo/public/json-api", {
+      headers: [
+        ["accept", "application/json"],
+        ["accept", "text/json"],
+        ["accept", "json"],
+      ],
+    });
+
+    expect(response1.status).toBe(200);
+    expect(await response1.json()).toStrictEqual({ foo: "bar" });
+
+    const response2 = await fetch("http://mock.foo/public/json-api", {
+      headers: [
+        ["accept", "application/json"],
+        ["accept", "text/json"],
+        ["accept", "json"],
+      ],
+    });
+
+    expect(response2.status).toBe(200);
+    expect(await response2.json()).toStrictEqual({ foo: "bar" });
+
+    expect(nodeFetch).toHaveFetchedTimes(1, `path:/public/json-api`);
   });
 });
