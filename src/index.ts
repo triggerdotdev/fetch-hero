@@ -134,7 +134,7 @@ export default function fetchHero(
           // updated headers from the new cache policy. But don't worry, this is by design.
           // If this updated response is used in a new response, the cached policy will be used
           // To set the headers of the response returned.
-          await cache.set(cacheKey, cacheEntry);
+          await cache.set(cacheKey, cacheEntry, newCachePolicy.timeToLive());
 
           return rehydrateFetchResponseFromCacheEntry(
             response,
@@ -164,7 +164,7 @@ export default function fetchHero(
           response: await buildCachedResponse(response),
         };
 
-        await cache.set(cacheKey, cacheEntry);
+        await cache.set(cacheKey, cacheEntry, cachePolicy.timeToLive());
 
         return response;
       }
@@ -192,7 +192,7 @@ async function revalidateRequest(
 
   // Send request to the origin server. The server may respond with status 304
   const revalidationResponse = await fetch(newRequest.url!, {
-    headers: unnormalizeHeaders(newRequest.headers),
+    headers: rehydrateHeaders(newRequest.headers),
     method: newRequest.method,
     body: getBodyFromInput(info, init),
   });
@@ -224,7 +224,7 @@ function rehydrateFetchResponseFromCacheEntry(
     size: cachedResponse.size,
     status: cachedResponse.status,
     statusText: cachedResponse.statusText,
-    headers: unnormalizeHeaders(policyHeaders),
+    headers: rehydrateHeaders(policyHeaders),
   });
 
   return response;
@@ -268,7 +268,7 @@ function buildCachePolicyRequest(
   };
 }
 
-function unnormalizeHeaders(headers: CachePolicy.Headers): Headers {
+function rehydrateHeaders(headers: CachePolicy.Headers): Headers {
   const result = new Headers();
 
   Object.keys(headers).forEach((headerName) => {
