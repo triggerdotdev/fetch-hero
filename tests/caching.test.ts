@@ -22,6 +22,20 @@ describe("caching requests", () => {
       },
     });
 
+    nodeFetch.mock(
+      {
+        url: "path:/post-request",
+        method: "POST",
+      },
+      {
+        body: "public post-request",
+        status: 200,
+        headers: {
+          "Content-Type": "text",
+        },
+      }
+    );
+
     nodeFetch.mock(/public\/cacheableurl/, {
       body: "public cacheableurl",
       status: 200,
@@ -717,5 +731,29 @@ describe("caching requests", () => {
     expect(await response2.json()).toStrictEqual({ foo: "bar" });
 
     expect(nodeFetch).toHaveFetchedTimes(1, `path:/public/json-api`);
+  });
+
+  test("Should not cache POST requests", async () => {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: { enabled: true },
+    });
+
+    const response1 = await fetch("http://mock.foo/post-request", {
+      method: "POST",
+      body: JSON.stringify({ foo: "bar" }),
+    });
+
+    expect(response1.status).toBe(200);
+    expect(await response1.text()).toEqual("public post-request");
+
+    const response2 = await fetch("http://mock.foo/post-request", {
+      method: "POST",
+      body: JSON.stringify({ foo: "bar" }),
+    });
+
+    expect(response2.status).toBe(200);
+    expect(await response2.text()).toEqual("public post-request");
+
+    expect(nodeFetch).toHaveFetchedTimes(2, `path:/post-request`);
   });
 });
