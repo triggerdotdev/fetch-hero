@@ -262,7 +262,7 @@ function buildCachePolicyRequest(
 ): CachePolicy.Request {
   return {
     headers: normalizeHeaders(getHeadersFromInput(input, init)),
-    url: getUrlFromInput(input).href,
+    url: normalizeUrl(getUrlFromInput(input)),
     method: getMethodFromInput(input, init).toUpperCase(),
   };
 }
@@ -372,4 +372,14 @@ function getUrlFromInput(input: RequestInfo): URL {
   } else {
     throw new Error("Invalid input, could not create url");
   }
+}
+
+function normalizeUrl(url: URL): string {
+  const normalized = new URL(url.toString());
+
+  normalized.hash = "";
+  normalized.searchParams.sort();
+  normalized.pathname = normalized.pathname.replace(/\/$/, "");
+
+  return normalized.toString();
 }

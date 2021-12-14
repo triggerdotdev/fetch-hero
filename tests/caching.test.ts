@@ -12,8 +12,18 @@ const nodeFetch = fetchMockJest.sandbox();
 
 describe("caching requests", () => {
   beforeAll(() => {
-    nodeFetch.mock(`path:/public/cacheable`, {
+    nodeFetch.mock("path:/public/cacheable", {
       body: "public cacheable",
+      status: 200,
+      headers: {
+        "Content-Type": "text",
+        "Cache-Control": "public, max-age=60",
+        "Last-Modified": new Date(Date.now() - 20000).toUTCString(),
+      },
+    });
+
+    nodeFetch.mock(/public\/cacheableurl/, {
+      body: "public cacheableurl",
       status: 200,
       headers: {
         "Content-Type": "text",
@@ -191,7 +201,7 @@ describe("caching requests", () => {
             accepts = acceptHeader ? acceptHeader[1] : "text/plain";
           } else if (opts.headers instanceof Headers) {
             accepts = opts.headers.get("accept") || "text/plain";
-          } else {
+          } else if (opts.headers) {
             accepts = opts.headers["accept"] || "text/plain";
           }
 
@@ -269,6 +279,22 @@ describe("caching requests", () => {
     expect(await response2.text()).toBe("public cacheable");
 
     expect(nodeFetch).toHaveFetchedTimes(1, `path:/public/cacheable`);
+  });
+
+  test("Should respond with a cached response by normalizing the url", async () => {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: { enabled: true },
+    });
+
+    const response1 = await fetch(`http://mock.foo/public/cacheableurl`);
+    expect(response1.status).toBe(200);
+    expect(await response1.text()).toBe("public cacheableurl");
+
+    const response2 = await fetch(`http://mock.foo/public/cacheableurl/`);
+    expect(response2.status).toBe(200);
+    expect(await response2.text()).toBe("public cacheableurl");
+
+    expect(nodeFetch).toHaveFetchedTimes(1, /public\/cacheableurl/);
   });
 
   test("Should work with passing a Request to the fetch function", async () => {
