@@ -281,6 +281,47 @@ describe("caching requests", () => {
     expect(nodeFetch).toHaveFetchedTimes(1, `path:/public/cacheable`);
   });
 
+  test("Should allow disabling the cache per request", async () => {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: { enabled: true },
+    });
+
+    const response1 = await fetch(`http://mock.foo/public/cacheable`);
+    expect(response1.status).toBe(200);
+    expect(await response1.text()).toBe("public cacheable");
+
+    const response2 = await fetch(
+      `http://mock.foo/public/cacheable`,
+      {},
+      { httpCache: { enabled: false } }
+    );
+    expect(response2.status).toBe(200);
+    expect(await response2.text()).toBe("public cacheable");
+
+    expect(nodeFetch).toHaveFetchedTimes(2, `path:/public/cacheable`);
+  });
+
+  test("Should allow setting the namespace per request", async () => {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: { enabled: true },
+    });
+
+    const response1 = await fetch(`http://mock.foo/public/cacheable`);
+    expect(response1.status).toBe(200);
+    expect(await response1.text()).toBe("public cacheable");
+
+    const response2 = await fetch(
+      `http://mock.foo/public/cacheable`,
+      {},
+      { httpCache: { namespace: "request" } }
+    );
+
+    expect(response2.status).toBe(200);
+    expect(await response2.text()).toBe("public cacheable");
+
+    expect(nodeFetch).toHaveFetchedTimes(2, `path:/public/cacheable`);
+  });
+
   test("Should respond with a cached response by normalizing the url", async () => {
     const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
       httpCache: { enabled: true },

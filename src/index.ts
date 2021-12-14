@@ -1,3 +1,4 @@
+import merge from "lodash.merge";
 import CachePolicy from "http-cache-semantics";
 import Keyv from "keyv";
 import {
@@ -46,9 +47,17 @@ export type FetchHeroOptions = {
 export { Headers };
 export { RequestInfo };
 
+export type RequestFetchHeroOptions = {
+  httpCache?: { enabled?: boolean } & Pick<
+    HttpCacheOptions,
+    "namespace" | "options"
+  >;
+};
+
 export type FetchFunction = (
   input: RequestInfo,
-  init?: RequestInit
+  init?: RequestInit,
+  options?: RequestFetchHeroOptions
 ) => Promise<Response>;
 
 type CachedResponse = {
@@ -89,12 +98,14 @@ export default function fetchHero(
 
   async function decoratedFetch(
     input: RequestInfo,
-    init?: RequestInit
+    init?: RequestInit,
+    requestHeroOptions?: RequestFetchHeroOptions
   ): Promise<Response> {
-    if (cache) {
-      const newCachePolicyRequest = buildCachePolicyRequest(input, init);
-      const cacheKey = `${newCachePolicyRequest.method}:${newCachePolicyRequest.url}`;
+    const opts = merge({}, options, requestHeroOptions);
 
+    if (cache && opts && opts.httpCache && opts.httpCache.enabled) {
+      const newCachePolicyRequest = buildCachePolicyRequest(input, init);
+      const cacheKey = buildCacheKey(newCachePolicyRequest, requestHeroOptions);
       const existingCacheEntry = await cache.get(cacheKey);
 
       // If we have a cache entry, we need to check if it's still valid
@@ -227,6 +238,19 @@ function rehydrateFetchResponseFromCacheEntry(
   });
 
   return response;
+}
+
+function buildCacheKey(
+  request: CachePolicy.Request,
+  options?: RequestFetchHeroOptions
+): string {
+  const requestPart = `${request.method}:${request.url}`;
+
+  if (options?.httpCache?.namespace) {
+    return `${options.httpCache.namespace}:${requestPart}`;
+  }
+
+  return requestPart;
 }
 
 async function buildCachedResponse(
