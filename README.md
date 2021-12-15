@@ -8,8 +8,8 @@
 
 - No magic. Wraps `fetch` and returns a new `fetch` function
 - Enables RFC 7234 and RFC 5861 compliant HTTP caching (using [http-cache-semantics](https://github.com/kornelski/http-cache-semantics))
-- Works with local and shared caches
 - Support for multiple storage backends by using [Keyv](https://github.com/jaredwray/keyv)
+- Works with local and shared caches
 - Custom namespaces
 - Handles caching a response body through [json-buffer](https://www.npmjs.com/package/json-buffer)
 - Normalizes urls to increase cache hits
@@ -153,8 +153,12 @@ View the [Keyv documentation](https://github.com/jaredwray/keyv) to learn more a
 
 ## Roadmap
 
+- [ ] Remove hard dependency on `node-fetch`
+- [ ] Support for [minipass-fetch](https://github.com/npm/minipass-fetch)
 - [ ] Proxy support
 - [ ] GZIP support
 - [ ] Configurable request retrying
 - [ ] Request pooling
 - [ ] Persistent connections
+- [ ] Limit memory usage
+- [ ] Add performance tests
