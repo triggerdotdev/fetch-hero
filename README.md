@@ -26,7 +26,7 @@ $ npm install --save @jsonhero/fetch-hero
 `fetchHero` wraps the `fetch` function and returns a new `fetch` function, with the exact same interface
 
 ```js
-const fetchHero = require("node-fetch-hero");
+const fetchHero = require("@jsonhero/fetch-hero");
 const nodeFetch = require("node-fetch");
 
 const fetch = fetchHero(nodeFetch);
