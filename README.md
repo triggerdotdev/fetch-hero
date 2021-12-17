@@ -1,6 +1,6 @@
 # Fetch Hero
 
-> Extends `node-fetch` with extra features
+> Extends server-side `fetch` with extra features
 
 ![Coverage lines](./badges/badge-lines.svg)
 
@@ -20,7 +20,7 @@
 Install Fetch Hero
 
 ```bash
-$ npm install --save node-fetch-hero
+$ npm install --save @jsonhero/fetch-hero
 ```
 
 `fetchHero` wraps the `fetch` function and returns a new `fetch` function, with the exact same interface

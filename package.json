@@ -1,7 +1,7 @@
 {
-  "name": "node-fetch-hero",
+  "name": "@jsonhero/fetch-hero",
   "version": "0.0.1",
-  "description": "Give node-fetch superpowers",
+  "description": "Give fetch superpowers",
   "exports": "./lib/index.js",
   "types": "lib/index.d.ts",
   "type": "module",
@@ -26,7 +26,7 @@
     "caching"
   ],
   "author": "Eric Allam",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@keyv/sqlite": "^2.0.3",
     "@tsconfig/node16": "^1.0.2",
