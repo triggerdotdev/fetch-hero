@@ -8,6 +8,9 @@
   "files": [
     "/lib"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "test": "jest --runInBand --coverage",
     "test:badges": "npm t && jest-coverage-badges --output ./badges",
