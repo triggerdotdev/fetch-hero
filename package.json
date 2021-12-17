@@ -1,6 +1,6 @@
 {
   "name": "@jsonhero/fetch-hero",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Give fetch superpowers",
   "exports": "./lib/index.js",
   "types": "lib/index.d.ts",
@@ -12,7 +12,8 @@
     "test": "jest --runInBand --coverage",
     "test:badges": "npm t && jest-coverage-badges --output ./badges",
     "build": "tsc",
-    "build:watch": "tsc --watch"
+    "build:watch": "tsc --watch",
+    "prepublishOnly": "tsc"
   },
   "engines": {
     "node": "16"
