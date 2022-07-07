@@ -136,20 +136,41 @@ const fetch = fetchHero(nodeFetch, {
 });
 
 // Using the user identifier so we don't mix cached responses
-await fetch(
-  "http://test.dev/private",
-  {},
-  { httpCache: { namespace: user.identifier } }
-);
+await fetch("http://test.dev/private", {
+  fh: { httpCache: { namespace: user.identifier } },
+});
 ```
 
-As you can see, the `fetch` function above accepts a non-standard third argument that accepts the same options object as passed in the second argument to `fetchHero`, allowing you to customize cache behaviour on a per-request basis.
-
-> _Note_: You cannot pass in a new `store` value on a per-request basis. If you need to use multiple stores, call `fetchHero` multiple times with different options to produce a different `fetch` function per store
+As you can see, the `fetch` function above accepts a non-standard `fh` property, allowing you to customize Fetch Hero behaviour on a per request basis. See the [RequestInitFhProperties]() documentation for more info.
 
 ## Storage Adapters
 
 View the [Keyv documentation](https://github.com/jaredwray/keyv) to learn more about the storage adapters that Fetch Hero supports.
+
+## API
+
+### `fetchHero` function
+
+### `FetchHeroOptions` object
+
+### `RequestInitFhProperties` properties
+
+An object containing FetchHero-specific properties that can be set on the Request object. For example:
+
+```js
+// Disable catching for this request
+fetch(event.request, { fh: { httpCache: { enabled: false } } });
+```
+
+#### `httpCache` _optional_
+
+An object to customize the caching behaviour of FetchHero, with the following parameters:
+
+| Parameter   | Type                  | Description                                                                                                                                          |
+| :---------- | :-------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`   | `boolean`             | Set to false to disable caching for the request. If `fetchHero` was initialized without caching disabled, setting this to `true` will have no effect |
+| `namespace` | `string`              | Set a custom namespace for the request.                                                                                                              |
+| `options`   | `CachePolicy.Options` | Set custom [CachePolicy.Options](#cache-policy-options) object for the request                                                                       |
 
 ## Roadmap
 

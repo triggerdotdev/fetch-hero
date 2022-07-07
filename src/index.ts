@@ -47,17 +47,22 @@ export type FetchHeroOptions = {
 export { Headers };
 export { RequestInfo };
 
-export type RequestFetchHeroOptions = {
+export type RequestInitFhProperties = {
   httpCache?: { enabled?: boolean } & Pick<
     HttpCacheOptions,
     "namespace" | "options"
   >;
 };
 
+type FetchHeroRequestInit = RequestInit & {
+  fh?: RequestInitFhProperties;
+};
+
+export { FetchHeroRequestInit as RequestInit };
+
 export type FetchFunction = (
   input: RequestInfo,
-  init?: RequestInit,
-  options?: RequestFetchHeroOptions
+  init?: FetchHeroRequestInit
 ) => Promise<Response>;
 
 type CachedResponse = {
@@ -98,15 +103,17 @@ export default function fetchHero(
 
   async function decoratedFetch(
     input: RequestInfo,
-    init?: RequestInit,
-    requestHeroOptions?: RequestFetchHeroOptions
+    init?: FetchHeroRequestInit
   ): Promise<Response> {
-    const opts = merge({}, options, requestHeroOptions);
+    const opts = merge({}, options, init?.fh);
 
     if (cache && opts && opts.httpCache && opts.httpCache.enabled) {
       const newCachePolicyRequest = buildCachePolicyRequest(input, init);
-      const cacheKey = buildCacheKey(newCachePolicyRequest, requestHeroOptions);
+      const cacheKey = buildCacheKey(newCachePolicyRequest, init?.fh);
       const existingCacheEntry = await cache.get(cacheKey);
+
+      // If there is an existing cache entry, only revalidate the request if the
+      // cache entry is stale (when there is a cacheTtl set and that has expired)
 
       // If we have a cache entry, we need to check if it's still valid
       if (existingCacheEntry) {
@@ -242,7 +249,7 @@ function rehydrateFetchResponseFromCacheEntry(
 
 function buildCacheKey(
   request: CachePolicy.Request,
-  options?: RequestFetchHeroOptions
+  options?: RequestInitFhProperties
 ): string {
   const requestPart = `${request.method}:${request.url}`;
 

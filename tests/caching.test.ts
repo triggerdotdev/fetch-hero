@@ -304,11 +304,9 @@ describe("caching requests", () => {
     expect(response1.status).toBe(200);
     expect(await response1.text()).toBe("public cacheable");
 
-    const response2 = await fetch(
-      `http://mock.foo/public/cacheable`,
-      {},
-      { httpCache: { enabled: false } }
-    );
+    const response2 = await fetch(`http://mock.foo/public/cacheable`, {
+      fh: { httpCache: { enabled: false } },
+    });
     expect(response2.status).toBe(200);
     expect(await response2.text()).toBe("public cacheable");
 
@@ -324,11 +322,9 @@ describe("caching requests", () => {
     expect(response1.status).toBe(200);
     expect(await response1.text()).toBe("public cacheable");
 
-    const response2 = await fetch(
-      `http://mock.foo/public/cacheable`,
-      {},
-      { httpCache: { namespace: "request" } }
-    );
+    const response2 = await fetch(`http://mock.foo/public/cacheable`, {
+      fh: { httpCache: { namespace: "request" } },
+    });
 
     expect(response2.status).toBe(200);
     expect(await response2.text()).toBe("public cacheable");
