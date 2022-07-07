@@ -8,6 +8,7 @@
 
 - No magic. Wraps `fetch` and returns a new `fetch` function
 - Enables RFC 7234 and RFC 5861 compliant HTTP caching (using [http-cache-semantics](https://github.com/kornelski/http-cache-semantics))
+- Bypass cache semantics on GET and HEAD requests to set a specific cache TTL
 - Support for multiple storage backends by using [Keyv](https://github.com/jaredwray/keyv)
 - Works with local and shared caches
 - Custom namespaces
@@ -35,7 +36,7 @@ const fetch = fetchHero(nodeFetch);
 const response = await fetch("http://google.com");
 ```
 
-By default caching is disabled, you can enable it by setting the `httpCache.enabled` option to `true`
+By default http semantic caching is disabled, you can enable it by setting the `httpCache.enabled` option to `true`
 
 ```js
 const fetch = fetchHero(nodeFetch, { httpCache: { enabled: true } });
@@ -61,7 +62,7 @@ const fetch = fetchHero(nodeFetch, {
 });
 ```
 
-You can also pass any connection string to `httpCache.store` that [Keyv](https://github.com/jaredwray/keyv).
+You can also pass any connection string to `cache.store` that [Keyv](https://github.com/jaredwray/keyv).
 
 ```bash
 $ npm install --save @keyv/redis
@@ -91,7 +92,7 @@ await fetch("http://test.dev/foo");
 customMap.has("fetch-hero.default:GET:http://test.dev/foo"); // true
 ```
 
-You can supply a custom namespace using the `httpCache.namespace` option
+You can supply a custom namespace using the `cache.namespace` option
 
 ```js
 const customMap = new Map();
@@ -130,18 +131,34 @@ If you are using something like redis for your cache storage, and would like to 
 const fetch = fetchHero(nodeFetch, {
   httpCache: {
     enabled: true,
-    shared: true,
+    shared: false,
     store: "redis://user:pass@localhost:6379",
   },
 });
 
 // Using the user identifier so we don't mix cached responses
 await fetch("http://test.dev/private", {
-  fh: { httpCache: { namespace: user.identifier } },
+  fh: { cache: { namespace: user.identifier } },
 });
 ```
 
 As you can see, the `fetch` function above accepts a non-standard `fh` property, allowing you to customize Fetch Hero behaviour on a per request basis. See the [RequestInitFhProperties]() documentation for more info.
+
+## HTTP Cache semantic bypassing
+
+You can bypass the HTTP caching semantics on GET and HEAD requests by passing the `bypass` option with a `ttl` in seconds, like so:
+
+```typescript
+const fetch = fetchHero(nodeFetch, {
+  httpCache: { enabled: true, bypass: { ttl: 120 } }, // 120 seconds
+});
+
+await fetch("http://test.dev/foo");
+// This will ignore the response headers and return a cached response
+await fetch("http://test.dev/foo");
+```
+
+This will force requests to return cached responses for 120 seconds after the first fresh request is made, bypassing the HTTP cache semantics of the response headers.
 
 ## Storage Adapters
 
@@ -164,13 +181,22 @@ fetch(event.request, { fh: { httpCache: { enabled: false } } });
 
 #### `httpCache` _optional_
 
-An object to customize the caching behaviour of FetchHero, with the following parameters:
+An object to customize the http caching behaviour of FetchHero, with the following parameters:
 
-| Parameter   | Type                  | Description                                                                                                                                          |
-| :---------- | :-------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `enabled`   | `boolean`             | Set to false to disable caching for the request. If `fetchHero` was initialized without caching disabled, setting this to `true` will have no effect |
-| `namespace` | `string`              | Set a custom namespace for the request.                                                                                                              |
-| `options`   | `CachePolicy.Options` | Set custom [CachePolicy.Options](#cache-policy-options) object for the request                                                                       |
+| Parameter   | Type                           | Description                                                                                                                                          |
+| :---------- | :----------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`   | `boolean`                      | Set to false to disable caching for the request. If `fetchHero` was initialized without caching disabled, setting this to `true` will have no effect |
+| `namespace` | `string`                       | Set a custom namespace for the request.                                                                                                              |
+| `options`   | `CachePolicy.Options`          | Set custom [CachePolicy.Options](#cache-policy-options) object for the request                                                                       |
+| `bypass`    | `HTTPSemanticBypassingOptions` | Set custom [HTTPSemanticBypassingOptions](#cache-policy-options) object for the request                                                              |
+
+#### `HTTPSemanticBypassingOptions`
+
+An object to customize the http semantic caching bypassing behaviour of FetchHero, with the following parameters:
+
+| Parameter | Type     | Description                                             |
+| :-------- | :------- | :------------------------------------------------------ |
+| `ttl`     | `number` | Number of seconds to bypass HTTP caching semantics for. |
 
 ## Roadmap
 

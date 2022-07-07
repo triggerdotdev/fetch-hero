@@ -279,6 +279,22 @@ describe("caching requests", () => {
     expect(nodeFetch).toHaveFetchedTimes(2, `path:/no-store`);
   });
 
+  test("Should cache if ttl is set, even if cache does not allow it", async () => {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: { enabled: true, bypass: { ttl: 30 } },
+    });
+
+    const response1 = await fetch(`http://mock.foo/no-store`);
+    expect(response1.status).toBe(200);
+    expect(await response1.text()).toBe("no-store");
+
+    const response2 = await fetch(`http://mock.foo/no-store`);
+    expect(response2.status).toBe(200);
+    expect(await response2.text()).toBe("no-store");
+
+    expect(nodeFetch).toHaveFetchedTimes(1, `path:/no-store`);
+  });
+
   test("Should respond with a cached response if caching is enabled, cache-control=public, max-age=60", async () => {
     const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
       httpCache: { enabled: true },
@@ -293,6 +309,42 @@ describe("caching requests", () => {
     expect(await response2.text()).toBe("public cacheable");
 
     expect(nodeFetch).toHaveFetchedTimes(1, `path:/public/cacheable`);
+  });
+
+  test("Should respond with a cached response if cache.ttl is longer than max-age", async () => {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: { enabled: true, bypass: { ttl: 120 } },
+    });
+
+    const response1 = await fetch(`http://mock.foo/public/cacheable`);
+    expect(response1.status).toBe(200);
+    expect(await response1.text()).toBe("public cacheable");
+
+    jest.setSystemTime(Date.now() + 61000);
+
+    const response2 = await fetch(`http://mock.foo/public/cacheable`);
+    expect(response2.status).toBe(200);
+    expect(await response2.text()).toBe("public cacheable");
+
+    expect(nodeFetch).toHaveFetchedTimes(1, `path:/public/cacheable`);
+  });
+
+  test("Should make a fresh request if cache.ttl has expired", async () => {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: { enabled: true, bypass: { ttl: 120 } },
+    });
+
+    const response1 = await fetch(`http://mock.foo/public/cacheable`);
+    expect(response1.status).toBe(200);
+    expect(await response1.text()).toBe("public cacheable");
+
+    jest.setSystemTime(Date.now() + 121000);
+
+    const response2 = await fetch(`http://mock.foo/public/cacheable`);
+    expect(response2.status).toBe(200);
+    expect(await response2.text()).toBe("public cacheable");
+
+    expect(nodeFetch).toHaveFetchedTimes(2, `path:/public/cacheable`);
   });
 
   test("Should allow disabling the cache per request", async () => {
@@ -464,6 +516,31 @@ describe("caching requests", () => {
 
     expect(ttl).toBeGreaterThan(59000);
     expect(ttl).toBeLessThan(61000);
+  });
+
+  test("Should cache passed freshness if cache.ttl is set", async () => {
+    const customMap = new Map<any, any>();
+
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: {
+        enabled: true,
+        store: customMap,
+        bypass: { ttl: 120 },
+      },
+    });
+
+    await fetch(`http://mock.foo/public/cacheable`);
+
+    const cacheValue = JSON.parse(
+      customMap.get("fetch-hero.default:GET:http://mock.foo/public/cacheable")
+    );
+
+    expect(cacheValue).toBeDefined();
+
+    const ttl = cacheValue.expires - Date.now();
+
+    expect(ttl).toBeGreaterThan(119000);
+    expect(ttl).toBeLessThan(121000);
   });
 
   test("Should respect state-while-revalidate extension for setting TTL", async () => {
@@ -732,6 +809,30 @@ describe("caching requests", () => {
   test("Should not cache POST requests", async () => {
     const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
       httpCache: { enabled: true },
+    });
+
+    const response1 = await fetch("http://mock.foo/post-request", {
+      method: "POST",
+      body: JSON.stringify({ foo: "bar" }),
+    });
+
+    expect(response1.status).toBe(200);
+    expect(await response1.text()).toEqual("public post-request");
+
+    const response2 = await fetch("http://mock.foo/post-request", {
+      method: "POST",
+      body: JSON.stringify({ foo: "bar" }),
+    });
+
+    expect(response2.status).toBe(200);
+    expect(await response2.text()).toEqual("public post-request");
+
+    expect(nodeFetch).toHaveFetchedTimes(2, `path:/post-request`);
+  });
+
+  test("Should not cache POST requests with bypass set", async () => {
+    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+      httpCache: { enabled: true, bypass: { ttl: 60 } },
     });
 
     const response1 = await fetch("http://mock.foo/post-request", {

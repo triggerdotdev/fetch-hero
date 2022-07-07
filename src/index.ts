@@ -20,6 +20,11 @@ export interface CacheStoreOptions {
   ignoreCargoCult?: boolean;
 }
 
+export type HTTPSemanticBypassingOptions = {
+  // Number of seconds to cache the response
+  ttl: number;
+};
+
 export type HttpCacheOptions = {
   /**
 	Enables RFC 7234 and RFC 5861 HTTP caching
@@ -35,9 +40,10 @@ const fetch = fetchHero(nodeFetch, { httpCache: { enabled: true } });
 	```
 	*/
   enabled: boolean;
+  options?: CachePolicy.Options;
   store?: string | Map<any, any>;
   namespace?: string;
-  options?: CachePolicy.Options;
+  bypass?: HTTPSemanticBypassingOptions;
 };
 
 export type FetchHeroOptions = {
@@ -48,10 +54,7 @@ export { Headers };
 export { RequestInfo };
 
 export type RequestInitFhProperties = {
-  httpCache?: { enabled?: boolean } & Pick<
-    HttpCacheOptions,
-    "namespace" | "options"
-  >;
+  httpCache?: Partial<Omit<HttpCacheOptions, "store">>;
 };
 
 type FetchHeroRequestInit = RequestInit & {
@@ -77,6 +80,7 @@ type CachedResponse = {
 type CacheEntry = {
   policy: CachePolicy.CachePolicyObject;
   response: CachedResponse;
+  httpSemanticsBypass?: { ttl: number; timestamp: number };
 };
 
 export default function fetchHero(
@@ -85,18 +89,18 @@ export default function fetchHero(
 ): FetchFunction {
   let cache: Keyv<CacheEntry> | undefined;
 
-  if (options && options.httpCache && options.httpCache.enabled) {
-    const cacheStore = options.httpCache.store ?? new Map<any, any>();
+  if (options && options.httpCache) {
+    const cacheStore = options.httpCache?.store ?? new Map<any, any>();
 
     if (typeof cacheStore === "string") {
       cache = new Keyv<CacheEntry>({
         uri: cacheStore,
-        namespace: `fetch-hero.${options.httpCache.namespace ?? "default"}`,
+        namespace: `fetch-hero.${options.httpCache?.namespace ?? "default"}`,
       });
     } else {
       cache = new Keyv<CacheEntry>({
         store: cacheStore,
-        namespace: `fetch-hero.${options.httpCache.namespace ?? "default"}`,
+        namespace: `fetch-hero.${options.httpCache?.namespace ?? "default"}`,
       });
     }
   }
@@ -107,7 +111,7 @@ export default function fetchHero(
   ): Promise<Response> {
     const opts = merge({}, options, init?.fh);
 
-    if (cache && opts && opts.httpCache && opts.httpCache.enabled) {
+    if (cache) {
       const newCachePolicyRequest = buildCachePolicyRequest(input, init);
       const cacheKey = buildCacheKey(newCachePolicyRequest, init?.fh);
       const existingCacheEntry = await cache.get(cacheKey);
@@ -118,6 +122,27 @@ export default function fetchHero(
       // If we have a cache entry, we need to check if it's still valid
       if (existingCacheEntry) {
         const cachePolicy = CachePolicy.fromObject(existingCacheEntry.policy);
+
+        if (
+          existingCacheEntry.httpSemanticsBypass &&
+          isCacheableRequest(newCachePolicyRequest)
+        ) {
+          const expiresAt =
+            existingCacheEntry.httpSemanticsBypass.timestamp +
+            existingCacheEntry.httpSemanticsBypass.ttl;
+
+          if (expiresAt > Date.now()) {
+            // The cache entry has not expired, so we can return it
+            return rehydrateFetchResponseFromCacheEntry(
+              existingCacheEntry.response,
+              cachePolicy.responseHeaders()
+            );
+          }
+        }
+
+        if (opts && opts.httpCache && opts.httpCache.enabled === false) {
+          return fetch(input, init);
+        }
 
         // If the cache entry is still valid, we can return it
         if (cachePolicy.satisfiesWithoutRevalidation(newCachePolicyRequest)) {
@@ -172,16 +197,30 @@ export default function fetchHero(
           options?.httpCache?.options
         );
 
-        if (!cachePolicy.storable()) {
+        const bypassHTTPCacheTtl = opts?.httpCache?.bypass?.ttl ?? 0;
+
+        if (!cachePolicy.storable() && bypassHTTPCacheTtl === 0) {
           return response;
         }
 
         const cacheEntry: CacheEntry = {
           policy: cachePolicy.toObject(),
           response: await buildCachedResponse(response),
+          httpSemanticsBypass:
+            bypassHTTPCacheTtl === 0
+              ? undefined
+              : {
+                  ttl: bypassHTTPCacheTtl * 1000,
+                  timestamp: Date.now(),
+                },
         };
 
-        await cache.set(cacheKey, cacheEntry, cachePolicy.timeToLive());
+        const ttl = Math.max(
+          cachePolicy.timeToLive(),
+          bypassHTTPCacheTtl * 1000
+        );
+
+        await cache.set(cacheKey, cacheEntry, ttl);
 
         return response;
       }
@@ -413,4 +452,8 @@ function normalizeUrl(url: URL): string {
   normalized.pathname = normalized.pathname.replace(/\/$/, "");
 
   return normalized.toString();
+}
+
+function isCacheableRequest(request: CachePolicy.Request): boolean {
+  return request.method === "GET" || request.method === "HEAD";
 }
