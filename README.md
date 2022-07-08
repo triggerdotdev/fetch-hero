@@ -15,6 +15,7 @@
 - Handles caching a response body through [json-buffer](https://www.npmjs.com/package/json-buffer)
 - Normalizes urls to increase cache hits
 - Written in strict Typescript
+- BYOF (Bring Your Own Fetch)
 
 ## Usage
 
@@ -200,7 +201,6 @@ An object to customize the http semantic caching bypassing behaviour of FetchHer
 
 ## Roadmap
 
-- [ ] Remove hard dependency on `node-fetch`
 - [ ] Support for [minipass-fetch](https://github.com/npm/minipass-fetch)
 - [ ] Proxy support
 - [ ] GZIP support

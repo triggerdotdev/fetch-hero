@@ -1,11 +1,14 @@
 {
-  "extends": "@tsconfig/node16/tsconfig.json",
-  "module": "ES2020",
+  "module": "esnext",
   "compilerOptions": {
+    "target": "ES2015",
+    "esModuleInterop": true,
     "preserveConstEnums": true,
     "outDir": "./lib",
     "declaration": true,
-    "allowJs": true
+    "allowJs": true,
+    "lib": ["DOM", "DOM.Iterable", "ES2019"],
+    "moduleResolution": "node"
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "**/*.spec.ts"]

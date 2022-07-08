@@ -1,15 +1,6 @@
 import merge from "lodash.merge";
 import CachePolicy from "http-cache-semantics";
 import Keyv from "keyv";
-import {
-  RequestInfo,
-  RequestInit,
-  Headers,
-  Response,
-  HeadersInit,
-  Request,
-  BodyInit,
-} from "node-fetch";
 
 import { URL } from "url";
 
@@ -50,9 +41,6 @@ export type FetchHeroOptions = {
   httpCache?: HttpCacheOptions;
 };
 
-export { Headers };
-export { RequestInfo };
-
 export type RequestInitFhProperties = {
   httpCache?: Partial<Omit<HttpCacheOptions, "store">>;
 };
@@ -74,7 +62,7 @@ type CachedResponse = {
   size?: number;
   status?: number;
   statusText?: string;
-  body?: Buffer;
+  body?: BodyInit;
 };
 
 type CacheEntry = {
@@ -276,8 +264,6 @@ function rehydrateFetchResponseFromCacheEntry(
   policyHeaders: CachePolicy.Headers
 ): Response {
   const response = new Response(cachedResponse.body, {
-    url: cachedResponse.url,
-    size: cachedResponse.size,
     status: cachedResponse.status,
     statusText: cachedResponse.statusText,
     headers: rehydrateHeaders(policyHeaders),
@@ -305,13 +291,12 @@ async function buildCachedResponse(
   const clonedResponse = response.clone();
 
   const headers = normalizeHeaders(clonedResponse.headers);
-  const body = await clonedResponse.buffer();
+  const body = clonedResponse.body;
 
   return {
     url: clonedResponse.url,
     status: clonedResponse.status,
     statusText: clonedResponse.statusText,
-    size: clonedResponse.size,
     headers,
     body,
   };
@@ -354,7 +339,7 @@ function rehydrateHeaders(headers: CachePolicy.Headers): Headers {
 }
 
 function isFetchHeaders(headers: HeadersInit): headers is Headers {
-  return typeof (headers as Headers).raw === "function";
+  return typeof (headers as Headers).has === "function";
 }
 
 function normalizeHeaders(headers?: HeadersInit): CachePolicy.Headers {
@@ -435,8 +420,6 @@ function getMethodFromInput(input: RequestInfo, init?: RequestInit): string {
 function getUrlFromInput(input: RequestInfo): URL {
   if (typeof input === "string") {
     return new URL(input);
-  } else if ("href" in input) {
-    return new URL(input.href);
   } else if ("url" in input) {
     return new URL(input.url);
   } else {

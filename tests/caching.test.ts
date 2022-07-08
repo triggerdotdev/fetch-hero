@@ -1,12 +1,9 @@
-import fetchHero, { FetchFunction, Headers } from "../src";
-
-import { Request } from "node-fetch";
+import fetchHero, { FetchFunction } from "../src";
 
 import { MockRequest } from "fetch-mock";
 import fetchMockJest from "fetch-mock-jest";
 
 import { unlinkSync } from "fs";
-import { URL } from "url";
 
 const nodeFetch = fetchMockJest.sandbox();
 
@@ -443,11 +440,11 @@ describe("caching requests", () => {
       httpCache: { enabled: true },
     });
 
-    const response1 = await fetch(new URL("http://mock.foo/public/cacheable"));
+    const response1 = await fetch("http://mock.foo/public/cacheable");
     expect(response1.status).toBe(200);
     expect(await response1.text()).toBe("public cacheable");
 
-    const response2 = await fetch(new URL("http://mock.foo/public/cacheable"));
+    const response2 = await fetch("http://mock.foo/public/cacheable");
     expect(response2.status).toBe(200);
     expect(await response2.text()).toBe("public cacheable");
 
