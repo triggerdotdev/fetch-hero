@@ -310,7 +310,7 @@ async function buildCachedResponse(
   const clonedResponse = response.clone();
 
   const headers = normalizeHeaders(clonedResponse.headers);
-  const body = clonedResponse.body;
+  const body = await clonedResponse.text();
 
   return {
     url: clonedResponse.url,
