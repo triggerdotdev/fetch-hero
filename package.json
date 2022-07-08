@@ -60,6 +60,7 @@
     "url-router": "^13.0.0"
   },
   "dependencies": {
+    "debug": "^4.3.4",
     "http-cache-semantics": "^4.1.0",
     "keyv": "^4.0.4",
     "lodash.merge": "^4.6.2",

@@ -387,7 +387,7 @@ describe("caching requests", () => {
     expect(response1.headers.get("x-fh-cache-status")).toBe("MISS");
 
     const response2 = await fetch(`http://mock.foo/public/cacheable`, {
-      fh: { httpCache: { namespace: "request" } },
+      fh: { httpCache: { namespace: "request-hero" } },
     });
 
     expect(response2.status).toBe(200);

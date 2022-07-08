@@ -1,8 +1,11 @@
 import merge from "lodash.merge";
 import CachePolicy from "http-cache-semantics";
 import Keyv from "keyv";
+import debugFunction from "debug";
 
 import { URL } from "url";
+
+const debug = debugFunction("fetch-hero");
 
 export interface CacheStoreOptions {
   shared?: boolean;
@@ -100,6 +103,9 @@ export default function fetchHero(
     if (cache) {
       const newCachePolicyRequest = buildCachePolicyRequest(input, init);
       const cacheKey = buildCacheKey(newCachePolicyRequest, init?.fh);
+
+      debug(`Checking cache for %s`, cacheKey);
+
       const existingCacheEntry = await cache.get(cacheKey);
 
       // If there is an existing cache entry, only revalidate the request if the
@@ -107,6 +113,8 @@ export default function fetchHero(
 
       // If we have a cache entry, we need to check if it's still valid
       if (existingCacheEntry) {
+        debug("Found cache entry for %s", cacheKey);
+
         const cachePolicy = CachePolicy.fromObject(existingCacheEntry.policy);
 
         if (
@@ -116,6 +124,12 @@ export default function fetchHero(
           const expiresAt =
             existingCacheEntry.httpSemanticsBypass.timestamp +
             existingCacheEntry.httpSemanticsBypass.ttl;
+
+          debug(
+            "Cache entry bypasses HTTP semantics, expires at %o, now is %o",
+            expiresAt,
+            Date.now()
+          );
 
           if (expiresAt > Date.now()) {
             // The cache entry has not expired, so we can return it
@@ -127,6 +141,8 @@ export default function fetchHero(
         }
 
         if (opts && opts.httpCache && opts.httpCache.enabled === false) {
+          debug("HTTP caching disabled, skipping cache for %s", cacheKey);
+
           return addHeroHeadersToResponse(await fetch(input, init), {
             "x-fh-cache-status": "MISS",
           });
@@ -139,8 +155,14 @@ export default function fetchHero(
             cachePolicy.responseHeaders()
           );
 
+          debug(
+            "Return cached response because it satisfies without revalidation %s",
+            cacheKey
+          );
+
           return response;
         } else {
+          debug("Cache entry is stale, revalidating %s", cacheKey);
           // Otherwise, we need to revalidate the request
           const {
             policy: newCachePolicy,
@@ -154,17 +176,32 @@ export default function fetchHero(
             ? revalidatedResponse
             : existingCacheEntry.response;
 
+          const bypassHTTPCacheTtl = opts?.httpCache?.bypass?.ttl ?? 0;
+
           // In either case, we need to update the cache entry
           const cacheEntry: CacheEntry = {
             policy: newCachePolicy.toObject(),
             response: response,
+            httpSemanticsBypass:
+              bypassHTTPCacheTtl === 0
+                ? undefined
+                : {
+                    ttl: bypassHTTPCacheTtl * 1000,
+                    timestamp: Date.now(),
+                  },
           };
 
+          const ttl = Math.max(
+            cachePolicy.timeToLive(),
+            bypassHTTPCacheTtl * 1000
+          );
+
+          debug("Caching revalidated response %s with ttl %0", cacheKey, ttl);
           // You might be thinking, but the response in the new cache entry does not have the
           // updated headers from the new cache policy. But don't worry, this is by design.
           // If this updated response is used in a new response, the cached policy will be used
           // To set the headers of the response returned.
-          await cache.set(cacheKey, cacheEntry, newCachePolicy.timeToLive());
+          await cache.set(cacheKey, cacheEntry, ttl);
 
           return rehydrateFetchResponseFromCacheEntry(
             response,
@@ -172,6 +209,7 @@ export default function fetchHero(
           );
         }
       } else {
+        debug("No cache entry for %s", cacheKey);
         // If we don't have a cache entry, we need to do the real request
         // And then potentially cache it if it is storable
         const response = await fetch(input, init);
@@ -210,6 +248,8 @@ export default function fetchHero(
           bypassHTTPCacheTtl * 1000
         );
 
+        debug("Caching fresh response %s with ttl %0", cacheKey, ttl);
+
         await cache.set(cacheKey, cacheEntry, ttl);
 
         return addHeroHeadersToResponse(response, {
@@ -217,6 +257,8 @@ export default function fetchHero(
         });
       }
     }
+
+    debug("Caching disabled, making real request");
 
     return addHeroHeadersToResponse(await fetch(input, init), {
       "x-fh-cache-status": "MISS",
