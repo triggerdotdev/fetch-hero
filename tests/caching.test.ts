@@ -249,127 +249,142 @@ describe("caching requests", () => {
   });
 
   test("Should not cache if caching is disabled", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction);
+    const fetch = fetchHero(nodeFetch);
 
     const response1 = await fetch(`http://mock.foo/public/cacheable`);
     expect(response1.status).toBe(200);
     expect(await response1.text()).toBe("public cacheable");
+    expect(response1.headers.get("x-fh-cache-status")).toBe("MISS");
 
     const response2 = await fetch(`http://mock.foo/public/cacheable`);
     expect(response2.status).toBe(200);
     expect(await response2.text()).toBe("public cacheable");
+    expect(response2.headers.get("x-fh-cache-status")).toBe("MISS");
 
     expect(nodeFetch).toHaveFetchedTimes(2, `path:/public/cacheable`);
   });
 
   test("Should not cache if response does not allow it", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction);
+    const fetch = fetchHero(nodeFetch);
 
     const response1 = await fetch(`http://mock.foo/no-store`);
     expect(response1.status).toBe(200);
     expect(await response1.text()).toBe("no-store");
+    expect(response1.headers.get("x-fh-cache-status")).toBe("MISS");
 
     const response2 = await fetch(`http://mock.foo/no-store`);
     expect(response2.status).toBe(200);
     expect(await response2.text()).toBe("no-store");
+    expect(response2.headers.get("x-fh-cache-status")).toBe("MISS");
 
     expect(nodeFetch).toHaveFetchedTimes(2, `path:/no-store`);
   });
 
   test("Should cache if ttl is set, even if cache does not allow it", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true, bypass: { ttl: 30 } },
     });
 
     const response1 = await fetch(`http://mock.foo/no-store`);
     expect(response1.status).toBe(200);
     expect(await response1.text()).toBe("no-store");
+    expect(response1.headers.get("x-fh-cache-status")).toBe("MISS");
 
     const response2 = await fetch(`http://mock.foo/no-store`);
     expect(response2.status).toBe(200);
     expect(await response2.text()).toBe("no-store");
+    expect(response2.headers.get("x-fh-cache-status")).toBe("HIT");
 
     expect(nodeFetch).toHaveFetchedTimes(1, `path:/no-store`);
   });
 
   test("Should respond with a cached response if caching is enabled, cache-control=public, max-age=60", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true },
     });
 
     const response1 = await fetch(`http://mock.foo/public/cacheable`);
     expect(response1.status).toBe(200);
     expect(await response1.text()).toBe("public cacheable");
+    expect(response1.headers.get("x-fh-cache-status")).toBe("MISS");
 
     const response2 = await fetch(`http://mock.foo/public/cacheable`);
     expect(response2.status).toBe(200);
     expect(await response2.text()).toBe("public cacheable");
 
     expect(nodeFetch).toHaveFetchedTimes(1, `path:/public/cacheable`);
+    expect(response2.headers.get("x-fh-cache-status")).toBe("HIT");
   });
 
   test("Should respond with a cached response if cache.ttl is longer than max-age", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true, bypass: { ttl: 120 } },
     });
 
     const response1 = await fetch(`http://mock.foo/public/cacheable`);
     expect(response1.status).toBe(200);
     expect(await response1.text()).toBe("public cacheable");
+    expect(response1.headers.get("x-fh-cache-status")).toBe("MISS");
 
     jest.setSystemTime(Date.now() + 61000);
 
     const response2 = await fetch(`http://mock.foo/public/cacheable`);
     expect(response2.status).toBe(200);
     expect(await response2.text()).toBe("public cacheable");
+    expect(response2.headers.get("x-fh-cache-status")).toBe("HIT");
 
     expect(nodeFetch).toHaveFetchedTimes(1, `path:/public/cacheable`);
   });
 
   test("Should make a fresh request if cache.ttl has expired", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true, bypass: { ttl: 120 } },
     });
 
     const response1 = await fetch(`http://mock.foo/public/cacheable`);
     expect(response1.status).toBe(200);
     expect(await response1.text()).toBe("public cacheable");
+    expect(response1.headers.get("x-fh-cache-status")).toBe("MISS");
 
     jest.setSystemTime(Date.now() + 121000);
 
     const response2 = await fetch(`http://mock.foo/public/cacheable`);
     expect(response2.status).toBe(200);
     expect(await response2.text()).toBe("public cacheable");
+    expect(response2.headers.get("x-fh-cache-status")).toBe("MISS");
 
     expect(nodeFetch).toHaveFetchedTimes(2, `path:/public/cacheable`);
   });
 
   test("Should allow disabling the cache per request", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true },
     });
 
     const response1 = await fetch(`http://mock.foo/public/cacheable`);
     expect(response1.status).toBe(200);
     expect(await response1.text()).toBe("public cacheable");
+    expect(response1.headers.get("x-fh-cache-status")).toBe("MISS");
 
     const response2 = await fetch(`http://mock.foo/public/cacheable`, {
       fh: { httpCache: { enabled: false } },
     });
     expect(response2.status).toBe(200);
     expect(await response2.text()).toBe("public cacheable");
+    expect(response2.headers.get("x-fh-cache-status")).toBe("MISS");
 
     expect(nodeFetch).toHaveFetchedTimes(2, `path:/public/cacheable`);
   });
 
   test("Should allow setting the namespace per request", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true },
     });
 
     const response1 = await fetch(`http://mock.foo/public/cacheable`);
     expect(response1.status).toBe(200);
     expect(await response1.text()).toBe("public cacheable");
+    expect(response1.headers.get("x-fh-cache-status")).toBe("MISS");
 
     const response2 = await fetch(`http://mock.foo/public/cacheable`, {
       fh: { httpCache: { namespace: "request" } },
@@ -377,28 +392,31 @@ describe("caching requests", () => {
 
     expect(response2.status).toBe(200);
     expect(await response2.text()).toBe("public cacheable");
+    expect(response2.headers.get("x-fh-cache-status")).toBe("MISS");
 
     expect(nodeFetch).toHaveFetchedTimes(2, `path:/public/cacheable`);
   });
 
   test("Should respond with a cached response by normalizing the url", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true },
     });
 
     const response1 = await fetch(`http://mock.foo/public/cacheableurl`);
     expect(response1.status).toBe(200);
     expect(await response1.text()).toBe("public cacheableurl");
+    expect(response1.headers.get("x-fh-cache-status")).toBe("MISS");
 
     const response2 = await fetch(`http://mock.foo/public/cacheableurl/`);
     expect(response2.status).toBe(200);
     expect(await response2.text()).toBe("public cacheableurl");
+    expect(response2.headers.get("x-fh-cache-status")).toBe("HIT");
 
     expect(nodeFetch).toHaveFetchedTimes(1, /public\/cacheableurl/);
   });
 
   test("Should work with passing a Request to the fetch function", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true },
     });
 
@@ -416,7 +434,7 @@ describe("caching requests", () => {
   });
 
   test("Should get the method from the RequestInit argument passed to the fetch function", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true },
     });
 
@@ -436,7 +454,7 @@ describe("caching requests", () => {
   });
 
   test("Should get the url from the URL argument passed to the fetch function", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true },
     });
 
@@ -454,7 +472,7 @@ describe("caching requests", () => {
   test("Should allow configuring the cache store with a Map", async () => {
     const customMap = new Map<any, any>();
 
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true, store: customMap },
     });
 
@@ -474,7 +492,7 @@ describe("caching requests", () => {
   test("Can pass in a custom namespace", async () => {
     const customMap = new Map<any, any>();
 
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: {
         enabled: true,
         store: customMap,
@@ -494,7 +512,7 @@ describe("caching requests", () => {
   test("Should by default cache the response only when it will be considered fresh", async () => {
     const customMap = new Map<any, any>();
 
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: {
         enabled: true,
         store: customMap,
@@ -518,7 +536,7 @@ describe("caching requests", () => {
   test("Should cache passed freshness if cache.ttl is set", async () => {
     const customMap = new Map<any, any>();
 
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: {
         enabled: true,
         store: customMap,
@@ -543,7 +561,7 @@ describe("caching requests", () => {
   test("Should respect state-while-revalidate extension for setting TTL", async () => {
     const customMap = new Map<any, any>();
 
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: {
         enabled: true,
         store: customMap,
@@ -567,7 +585,7 @@ describe("caching requests", () => {
   });
 
   test("Should send a revalidation request to the origin on stale requests, and respond with the cached response if the resource has not been modified", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: {
         enabled: true,
       },
@@ -610,7 +628,7 @@ describe("caching requests", () => {
   });
 
   test("Should send a revalidation request to the origin on stale requests, and respond with the revalidation response if the resource has been modified", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: {
         enabled: true,
       },
@@ -658,7 +676,7 @@ describe("caching requests", () => {
   });
 
   test("Should allow configuring the cache store with a connection string", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true, store: "sqlite://tests/test.sqlite" },
     });
 
@@ -676,7 +694,7 @@ describe("caching requests", () => {
   });
 
   test("Should NOT respond with a cached response if shared caching is enabled, cache-control=private", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true, options: { shared: true } },
     });
 
@@ -692,7 +710,7 @@ describe("caching requests", () => {
   });
 
   test("Should respond with a cached response if private caching is enabled, cache-control=private", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true, options: { shared: false } },
     });
 
@@ -708,7 +726,7 @@ describe("caching requests", () => {
   });
 
   test("Should pass through headers record to the server", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true },
     });
 
@@ -730,7 +748,7 @@ describe("caching requests", () => {
   });
 
   test("Should pass through headers from the Request to the origin server", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true },
     });
 
@@ -752,7 +770,7 @@ describe("caching requests", () => {
   });
 
   test("Should pass through headers array", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true },
     });
 
@@ -774,7 +792,7 @@ describe("caching requests", () => {
   });
 
   test("Should work with multiple values for a header", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true },
     });
 
@@ -804,7 +822,7 @@ describe("caching requests", () => {
   });
 
   test("Should not cache POST requests", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true },
     });
 
@@ -828,7 +846,7 @@ describe("caching requests", () => {
   });
 
   test("Should not cache POST requests with bypass set", async () => {
-    const fetch = fetchHero(nodeFetch as unknown as FetchFunction, {
+    const fetch = fetchHero(nodeFetch, {
       httpCache: { enabled: true, bypass: { ttl: 60 } },
     });
 

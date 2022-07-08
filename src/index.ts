@@ -45,11 +45,9 @@ export type RequestInitFhProperties = {
   httpCache?: Partial<Omit<HttpCacheOptions, "store">>;
 };
 
-type FetchHeroRequestInit = RequestInit & {
+export type FetchHeroRequestInit = RequestInit & {
   fh?: RequestInitFhProperties;
 };
-
-export { FetchHeroRequestInit as RequestInit };
 
 export type FetchFunction = (
   input: RequestInfo,
@@ -129,7 +127,9 @@ export default function fetchHero(
         }
 
         if (opts && opts.httpCache && opts.httpCache.enabled === false) {
-          return fetch(input, init);
+          return addHeroHeadersToResponse(await fetch(input, init), {
+            "x-fh-cache-status": "MISS",
+          });
         }
 
         // If the cache entry is still valid, we can return it
@@ -188,7 +188,9 @@ export default function fetchHero(
         const bypassHTTPCacheTtl = opts?.httpCache?.bypass?.ttl ?? 0;
 
         if (!cachePolicy.storable() && bypassHTTPCacheTtl === 0) {
-          return response;
+          return addHeroHeadersToResponse(response, {
+            "x-fh-cache-status": "MISS",
+          });
         }
 
         const cacheEntry: CacheEntry = {
@@ -210,14 +212,31 @@ export default function fetchHero(
 
         await cache.set(cacheKey, cacheEntry, ttl);
 
-        return response;
+        return addHeroHeadersToResponse(response, {
+          "x-fh-cache-status": "MISS",
+        });
       }
     }
 
-    return fetch(input, init);
+    return addHeroHeadersToResponse(await fetch(input, init), {
+      "x-fh-cache-status": "MISS",
+    });
   }
 
   return decoratedFetch;
+}
+
+function addHeroHeadersToResponse(
+  response: Response,
+  headersToAdd: HeadersInit
+): Response {
+  const headers = response.headers;
+
+  for (const [name, value] of Object.entries(headersToAdd)) {
+    headers.set(name, value);
+  }
+
+  return response;
 }
 
 async function revalidateRequest(
@@ -334,6 +353,8 @@ function rehydrateHeaders(headers: CachePolicy.Headers): Headers {
       result.append(headerName, headerValue);
     }
   });
+
+  result.append("x-fh-cache-status", "HIT");
 
   return result;
 }
