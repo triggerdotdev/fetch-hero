@@ -1,19 +1,19 @@
 {
   "name": "@jsonhero/fetch-hero",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Give fetch superpowers",
-  "homepage": "https://github.com/jsonhero-io/node-fetch-hero",
+  "homepage": "https://github.com/jsonhero-io/fetch-hero",
   "bugs": {
-    "url": "https://github.com/jsonhero-io/node-fetch-hero/issues",
+    "url": "https://github.com/jsonhero-io/fetch-hero/issues",
     "email": "eallam@icloud.com"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/jsonhero-io/node-fetch-hero.git"
+    "url": "https://github.com/jsonhero-io/fetch-hero.git"
   },
   "exports": "./lib/index.js",
   "types": "lib/index.d.ts",
-  "type": "module",
+  "type": "commonjs",
   "files": [
     "/lib"
   ],
