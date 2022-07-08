@@ -1,6 +1,6 @@
 {
   "name": "@jsonhero/fetch-hero",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Give fetch superpowers",
   "homepage": "https://github.com/jsonhero-io/fetch-hero",
   "bugs": {
