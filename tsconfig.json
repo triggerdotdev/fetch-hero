@@ -1,14 +1,15 @@
 {
   "module": "esnext",
   "compilerOptions": {
-    "target": "ES2015",
+    "target": "es5",
     "esModuleInterop": true,
     "preserveConstEnums": true,
     "outDir": "./lib",
     "declaration": true,
     "allowJs": true,
     "lib": ["DOM", "DOM.Iterable", "ES2019"],
-    "moduleResolution": "node"
+    "moduleResolution": "node",
+    "downlevelIteration": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "**/*.spec.ts"]
