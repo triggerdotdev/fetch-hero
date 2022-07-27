@@ -2,8 +2,10 @@ import merge from "lodash.merge";
 import CachePolicy from "http-cache-semantics";
 import Keyv from "keyv";
 import debugFunction from "debug";
+import retry, { Options as AsyncRetryOptions } from "async-retry";
 
 import { URL } from "url";
+import { List, Function } from "ts-toolbelt";
 
 const debug = debugFunction("fetch-hero");
 
@@ -40,12 +42,20 @@ const fetch = fetchHero(nodeFetch, { httpCache: { enabled: true } });
   bypass?: HTTPSemanticBypassingOptions;
 };
 
+export type RetryingOptions = {
+  enabled: boolean;
+  options?: AsyncRetryOptions;
+  retryOn?: Array<number>;
+};
+
 export type FetchHeroOptions = {
   httpCache?: HttpCacheOptions;
+  retrying?: RetryingOptions;
 };
 
 export type RequestInitFhProperties = {
   httpCache?: Partial<Omit<HttpCacheOptions, "store">>;
+  retrying?: Partial<RetryingOptions>;
 };
 
 export type FetchHeroRequestInit = RequestInit & {
@@ -143,9 +153,12 @@ export default function fetchHero(
         if (opts && opts.httpCache && opts.httpCache.enabled === false) {
           debug("HTTP caching disabled, skipping cache for %s", cacheKey);
 
-          return addHeroHeadersToResponse(await fetch(input, init), {
-            "x-fh-cache-status": "MISS",
-          });
+          return addHeroHeadersToResponse(
+            await fetchWithRetrying(input, init, opts.retrying, fetch),
+            {
+              "x-fh-cache-status": "MISS",
+            }
+          );
         }
 
         // If the cache entry is still valid, we can return it
@@ -212,7 +225,12 @@ export default function fetchHero(
         debug("No cache entry for %s", cacheKey);
         // If we don't have a cache entry, we need to do the real request
         // And then potentially cache it if it is storable
-        const response = await fetch(input, init);
+        const response = await fetchWithRetrying(
+          input,
+          init,
+          opts.retrying,
+          fetch
+        );
 
         const cachePolicyResponse =
           buildCachePolicyResponseFromFetchResponse(response);
@@ -260,9 +278,12 @@ export default function fetchHero(
 
     debug("Caching disabled, making real request");
 
-    return addHeroHeadersToResponse(await fetch(input, init), {
-      "x-fh-cache-status": "MISS",
-    });
+    return addHeroHeadersToResponse(
+      await fetchWithRetrying(input, init, opts.retrying, fetch),
+      {
+        "x-fh-cache-status": "MISS",
+      }
+    );
   }
 
   return decoratedFetch;
@@ -503,3 +524,58 @@ function normalizeUrl(url: URL): string {
 function isCacheableRequest(request: CachePolicy.Request): boolean {
   return request.method === "GET" || request.method === "HEAD";
 }
+
+type FetchFunctionWithRetrying = Function.Function<
+  List.Append<
+    List.Append<
+      Function.Parameters<FetchFunction>,
+      FetchHeroOptions["retrying"]
+    >,
+    FetchFunction
+  >,
+  Function.Return<FetchFunction>
+>;
+
+const fetchWithRetrying: FetchFunctionWithRetrying = async (
+  info,
+  init,
+  retryingOptions,
+  fetchFunction
+) => {
+  if (!retryingOptions || !retryingOptions.enabled) {
+    return fetchFunction(info, init);
+  }
+
+  const retryOn = retryingOptions.retryOn ?? [500, 502, 503, 504];
+
+  const retryOptions: AsyncRetryOptions = merge(
+    { retries: 4 },
+    retryingOptions.options
+  );
+
+  const response = await retry(async (bail, attempt) => {
+    debug(`Fetching %o, attempt #%o`, info, attempt);
+    // if anything throws, we retry
+    const res = await fetchFunction(info, init);
+
+    if (res.ok || attempt >= retryOptions.retries + 1) {
+      return res;
+    }
+
+    if (retryOn.includes(res.status)) {
+      debug(
+        `Retry %o, %o response was not ok (%o: %s)`,
+        attempt,
+        info,
+        res.status,
+        res.statusText
+      );
+
+      throw new Error(`Fetch failed with status ${res.status}`);
+    }
+
+    return res;
+  }, retryOptions);
+
+  return response;
+};

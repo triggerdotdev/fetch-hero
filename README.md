@@ -14,6 +14,7 @@
 - Custom namespaces
 - Handles caching a response body through [json-buffer](https://www.npmjs.com/package/json-buffer)
 - Normalizes urls to increase cache hits
+- Retry failed requests, using fine grained retry semantics powered by [async-retry](https://github.com/vercel/async-retry)
 - Written in strict Typescript
 - BYOF (Bring Your Own Fetch)
 
@@ -161,6 +162,38 @@ await fetch("http://test.dev/foo");
 
 This will force requests to return cached responses for 120 seconds after the first fresh request is made, bypassing the HTTP cache semantics of the response headers.
 
+### Retrying
+
+You can enable retrying to retry requests with failed responses:
+
+```typescript
+const fetch = fetchHero(nodeFetch, {
+  retrying: { enabled: true },
+});
+
+await fetch("http://test.dev/foo"); // Will retry up to 3 times if response is 500, 502, 503, or 504
+```
+
+You can customize which response codes will be retried:
+
+```typescript
+const fetch = fetchHero(nodeFetch, {
+  retrying: { enabled: true, retryOn: [429] }, // Only retry when there is a 429 error
+});
+
+await fetch("http://test.dev/foo"); // Will retry up to 3 times if response is 429
+```
+
+You can also customize the [async-retry options](https://github.com/vercel/async-retry):
+
+````typescript
+const fetch = fetchHero(nodeFetch, {
+  retrying: { enabled: true, options: { retries: 10, factor: 1.2, minTimeout: 250, maxTimeout: 10000, randomize: true } }
+});
+
+await fetch("http://test.dev/foo");
+```
+
 ## Storage Adapters
 
 View the [Keyv documentation](https://github.com/jaredwray/keyv) to learn more about the storage adapters that Fetch Hero supports.
@@ -178,7 +211,7 @@ An object containing FetchHero-specific properties that can be set on the Reques
 ```js
 // Disable catching for this request
 fetch(event.request, { fh: { httpCache: { enabled: false } } });
-```
+````
 
 #### `httpCache` _optional_
 
@@ -204,7 +237,6 @@ An object to customize the http semantic caching bypassing behaviour of FetchHer
 - [ ] Support for [minipass-fetch](https://github.com/npm/minipass-fetch)
 - [ ] Proxy support
 - [ ] GZIP support
-- [ ] Configurable request retrying
 - [ ] Request pooling
 - [ ] Persistent connections
 - [ ] Limit memory usage
