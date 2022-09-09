@@ -38,6 +38,7 @@ const fetch = fetchHero(nodeFetch, { httpCache: { enabled: true } });
   enabled: boolean;
   options?: CachePolicy.Options;
   store?: string | Map<any, any>;
+  storeOptions?: Record<string, any>;
   namespace?: string;
   bypass?: HTTPSemanticBypassingOptions;
 };
@@ -95,11 +96,13 @@ export default function fetchHero(
       cache = new Keyv<CacheEntry>({
         uri: cacheStore,
         namespace: `fetch-hero.${options.httpCache?.namespace ?? "default"}`,
+        ...(options.httpCache?.storeOptions ?? {}),
       });
     } else {
       cache = new Keyv<CacheEntry>({
         store: cacheStore,
         namespace: `fetch-hero.${options.httpCache?.namespace ?? "default"}`,
+        ...(options.httpCache?.storeOptions ?? {}),
       });
     }
   }
