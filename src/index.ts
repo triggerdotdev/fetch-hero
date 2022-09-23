@@ -246,7 +246,11 @@ export default function fetchHero(
 
         const bypassHTTPCacheTtl = opts?.httpCache?.bypass?.ttl ?? 0;
 
-        if (!cachePolicy.storable() && bypassHTTPCacheTtl === 0) {
+        if (
+          !cachePolicy.storable() &&
+          (bypassHTTPCacheTtl === 0 ||
+            !isCacheableRequest(newCachePolicyRequest))
+        ) {
           return addHeroHeadersToResponse(response, {
             "x-fh-cache-status": "MISS",
           });
@@ -351,7 +355,7 @@ function rehydrateFetchResponseFromCacheEntry(
   const response = new Response(cachedResponse.body, {
     status: cachedResponse.status,
     statusText: cachedResponse.statusText,
-    headers: rehydrateHeaders(policyHeaders),
+    headers: rehydrateHeaders(policyHeaders, true),
   });
 
   return response;
@@ -407,7 +411,10 @@ function buildCachePolicyRequest(
   };
 }
 
-function rehydrateHeaders(headers: CachePolicy.Headers): Headers {
+function rehydrateHeaders(
+  headers: CachePolicy.Headers,
+  fromCache = false
+): Headers {
   const result = new Headers();
 
   Object.keys(headers).forEach((headerName) => {
@@ -420,7 +427,9 @@ function rehydrateHeaders(headers: CachePolicy.Headers): Headers {
     }
   });
 
-  result.append("x-fh-cache-status", "HIT");
+  if (fromCache) {
+    result.append("x-fh-cache-status", "HIT");
+  }
 
   return result;
 }

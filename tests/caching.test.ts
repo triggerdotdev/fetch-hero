@@ -43,6 +43,17 @@ describe("caching requests", () => {
       },
     });
 
+    nodeFetch.mock(/public\/patchurl/, {
+      body: "public patchurl",
+      method: "PATCH",
+      status: 200,
+      headers: {
+        "Content-Type": "text",
+        "Cache-Control": "public, max-age=60",
+        "Last-Modified": new Date(Date.now() - 20000).toUTCString(),
+      },
+    });
+
     nodeFetch.mock(
       {
         name: "normal cacheable-while-revalidate request",
@@ -857,6 +868,7 @@ describe("caching requests", () => {
 
     expect(response1.status).toBe(200);
     expect(await response1.text()).toEqual("public post-request");
+    expect(response1.headers.get("x-fh-cache-status")).toBe("MISS");
 
     const response2 = await fetch("http://mock.foo/post-request", {
       method: "POST",
@@ -865,7 +877,56 @@ describe("caching requests", () => {
 
     expect(response2.status).toBe(200);
     expect(await response2.text()).toEqual("public post-request");
+    expect(response2.headers.get("x-fh-cache-status")).toBe("MISS");
 
     expect(nodeFetch).toHaveFetchedTimes(2, `path:/post-request`);
+  });
+
+  test("Should not cache PATCH requests", async () => {
+    const fetch = fetchHero(nodeFetch, {
+      httpCache: { enabled: true },
+    });
+
+    const response1 = await fetch("http://mock.foo/public/patchurl", {
+      method: "PATCH",
+      body: JSON.stringify({ foo: "bar" }),
+    });
+
+    expect(response1.status).toBe(200);
+    expect(response1.headers.get("x-fh-cache-status")).toBe("MISS");
+
+    const response2 = await fetch("http://mock.foo/public/patchurl", {
+      method: "PATCH",
+      body: JSON.stringify({ foo: "bar" }),
+    });
+
+    expect(response2.status).toBe(200);
+    expect(response2.headers.get("x-fh-cache-status")).toBe("MISS");
+
+    expect(nodeFetch).toHaveFetchedTimes(2, `path:/public/patchurl`);
+  });
+
+  test("Should not cache PATCH requests with bypass set", async () => {
+    const fetch = fetchHero(nodeFetch, {
+      httpCache: { enabled: true, bypass: { ttl: 3600 } },
+    });
+
+    const response1 = await fetch("http://mock.foo/public/patchurl", {
+      method: "PATCH",
+      body: JSON.stringify({ foo: "bar" }),
+    });
+
+    expect(response1.status).toBe(200);
+    expect(response1.headers.get("x-fh-cache-status")).toBe("MISS");
+
+    const response2 = await fetch("http://mock.foo/public/patchurl", {
+      method: "PATCH",
+      body: JSON.stringify({ foo: "bar" }),
+    });
+
+    expect(response2.status).toBe(200);
+    expect(response2.headers.get("x-fh-cache-status")).toBe("MISS");
+
+    expect(nodeFetch).toHaveFetchedTimes(2, `path:/public/patchurl`);
   });
 });
